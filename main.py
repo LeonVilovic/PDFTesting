@@ -4,6 +4,8 @@ import pytesseract
 import os
 import json
 import shutil
+from PIL import Image
+import io
 
 def extract_text_words_from_pdf(file_path):
     structured_data = []
@@ -15,11 +17,17 @@ def extract_text_words_from_pdf(file_path):
 
             if not words:  # No text layer → use OCR
                 print(f"Page {page_num}: No text layer found, running OCR...")
-                pix = page.get_pixmap(dpi=300)  # Render to image at 300 DPI
-                img_bytes = pix.tobytes("png")
+
+                # Render page as image
+                pix = page.get_pixmap(dpi=300)
+
+                # Convert to PIL image
+                img = Image.open(io.BytesIO(pix.tobytes("png")))
 
                 # OCR with bounding boxes
-                ocr_data = pytesseract.image_to_data(img_bytes, output_type=pytesseract.Output.DICT)
+                #ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
+                # OCR with bounding boxes SERBIN cyrilic
+                ocr_data = pytesseract.image_to_data(img, lang='srp', output_type=pytesseract.Output.DICT)
 
                 for i in range(len(ocr_data["text"])):
                     if ocr_data["text"][i].strip():
@@ -44,7 +52,7 @@ def extract_text_words_from_pdf(file_path):
                             "word": ocr_data["text"][i],
                             "bbox": (rect.x0, rect.y0, rect.x1, rect.y1)
                         })
-            else:
+            else:  # Normal PDF with selectable text
                 for word_tuple in words:
                     x0, y0, x1, y1, word, block_no, line_no, word_no = word_tuple
                     page_words.append({
@@ -139,7 +147,7 @@ def censor_every_second_word_replace_with_xxx(input_pdf, output_pdf, structured_
                     replacement_text,
                     fontsize=fontsize,
                     fontname="helv",
-                    color=(0, 0, 0),  # white text on black box
+                    color=(0, 0, 0),  # black text on black box
                 )
 
     doc.save(output_pdf)
