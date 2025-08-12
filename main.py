@@ -7,6 +7,11 @@ import shutil
 from PIL import Image
 import io
 
+import io
+import fitz as pymupdf
+from PIL import Image
+import pytesseract
+
 def extract_text_words_from_pdf(file_path):
     structured_data = []
 
@@ -26,11 +31,23 @@ def extract_text_words_from_pdf(file_path):
 
                 # OCR with bounding boxes
                 #ocr_data = pytesseract.image_to_data(img, output_type=pytesseract.Output.DICT)
-                # OCR with bounding boxes SERBIN cyrilic
+                # OCR with bounding boxes and full layout info and Serbian cyrilic
                 ocr_data = pytesseract.image_to_data(img, lang='srp', output_type=pytesseract.Output.DICT)
 
+                # Group word indices by (block_num, line_num)
+                block_line_words = {}
                 for i in range(len(ocr_data["text"])):
-                    if ocr_data["text"][i].strip():
+                    text = ocr_data["text"][i].strip()
+                    if not text:
+                        continue
+                    block_num = ocr_data["block_num"][i]
+                    line_num = ocr_data["line_num"][i]
+                    key = (block_num, line_num)
+                    block_line_words.setdefault(key, []).append(i)
+
+                # Assign word_no within each line
+                for (block_num, line_num), indices in sorted(block_line_words.items()):
+                    for word_idx_in_line, i in enumerate(indices, start=1):
                         x, y, w, h = (
                             ocr_data["left"][i],
                             ocr_data["top"][i],
@@ -42,13 +59,13 @@ def extract_text_words_from_pdf(file_path):
                             x * page.rect.width / pix.width,
                             y * page.rect.height / pix.height,
                             (x + w) * page.rect.width / pix.width,
-                            (y + h) * page.rect.height / pix.height
+                            (y + h) * page.rect.height / pix.height,
                         )
                         page_words.append({
                             "page": page_num,
-                            "block_no": 0,
-                            "line_no": ocr_data["line_num"][i],
-                            "word_no": ocr_data["word_num"][i],
+                            "block_no": block_num,
+                            "line_no": line_num,
+                            "word_no": word_idx_in_line,
                             "word": ocr_data["text"][i],
                             "bbox": (rect.x0, rect.y0, rect.x1, rect.y1)
                         })
